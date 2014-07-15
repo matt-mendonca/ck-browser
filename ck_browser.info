@@ -1,0 +1,10 @@
+name = "CK Editor Browser"
+description = "Adds a views based browser to link entities"
+package = "User interface"
+core = 7.x
+configure = admin/config/content/ck-browser
+version = 7.x-1.0-dev
+
+dependencies[] = styler
+dependencies[] = ckeditor
+dependencies[] = ckeditor_iframe_dialog_field

@@ -1,0 +1,123 @@
+<?php
+/**
+ * Implements hook_menu().
+ *
+ * Create the CK Browser Config Page.
+ */
+function ck_browser_menu() {
+  $items['admin/config/content/ck-browser'] = array(
+    'title' => 'CK Editor Browser',
+    'description' => 'CK Editor Browser Configuration Page',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('ck_browser_config_form'),
+    'file' => 'config_page.inc',
+    'access callback' => 'user_access',
+    'access arguments' => array('access administration pages'),
+    'theme callback' => 'variable_get',
+    'theme arguments' => array('admin_theme'),
+    'type' => MENU_LOCAL_TASK | MENU_NORMAL_ITEM,
+    'weight' => 9
+  );
+
+  return $items;
+}
+
+/**
+ * Implementation of hook_form_FORM_ID_alter().
+ * 
+ * @todo add for all entities, not just nodes
+ *
+ * Run a callback function on all node forms. This is so we can
+ * add some CSS and JS used by the CK Browser on WYSIWYG
+ */
+function ck_browser_form_node_form_alter(&$form, $form_state) {
+  $form['#after_build'][] = 'ck_browser_after_build';
+}
+
+/**
+ * hook_form_FORM_ID_alter() callback
+ * 
+ * Load the ck browser config into JS so the plugin can use
+ * it to populate the dialog correctly
+ */
+function ck_browser_after_build($form, &$form_state) {
+  $browser_view = variable_get('ck_browser_browser_view');
+  $styler_rules = variable_get('styler_rules');
+  $browser_styler_rule = variable_get('ck_browser_styler_rule');
+  $wysiwyg_button_label = variable_get('ck_browser_wysiwyg_button_label');
+
+  if(!isset($browser_view) || 
+     !isset($styler_rules) ||
+     !isset($browser_styler_rule) ||
+     !isset($wysiwyg_button_label) ): 
+
+    drupal_set_message(t("Please configure the CK Browser and Styler modules."), 'warning');
+
+    return;
+  endif;
+
+  $browser_view = json_decode($browser_view);
+  $styler_rules = json_decode($styler_rules);
+ 
+  //CamelCase because it is passed to JS
+  $styler = array(
+    'parameterName' => $styler_rules[$browser_styler_rule]->parameter_name,
+    'parameterValue' => $styler_rules[$browser_styler_rule]->parameter_value,
+    'styleSheet' => $styler_rules[$browser_styler_rule]->style_sheet
+  );
+
+  drupal_add_js(
+    array(
+      'CKBrowser' => array(
+        'browserView' => $browser_view,
+        'styler' => $styler,
+        'wysiwygButtonLabel' => $wysiwyg_button_label
+      )
+    ), 
+    array('type' => 'setting')
+  );
+  
+  return $form;
+}
+
+/**
+ * Implementation of hook_ckeditor_plugin().
+ *
+ * Add the plugin to the CK Editor config page.
+ */
+function ck_browser_ckeditor_plugin() {
+  $wysiwyg_button_label = variable_get('ck_browser_wysiwyg_button_label', 'Browse');
+
+  return array('ckeditor_browser' => array(
+    'name' => 'drupal_ck_browser',
+    'desc' => t('CKEditor Browser - A plugin that adds a browser to link to entities'),
+    'path' => drupal_get_path('module', 'ck_browser') .'/plugins/browser/',
+    'buttons' => array(
+      'CKBrowser' => array(
+        'icon' => 'add.png',
+        'label' => $wysiwyg_button_label
+      )
+    )
+  ));
+}
+
+/**
+ * Implements hook_preprocess_views_view().
+ *
+ * Add CSS and JS to the view configured for CK Browser (ui candy)
+ */
+function ck_browser_preprocess_views_view(&$vars) {
+  $view = $vars['view'];
+  $browser_view = json_decode(variable_get('ck_browser_browser_view'));
+
+  if(!isset($browser_view)) : 
+    drupal_set_message(t("Please configure the CK Browser module."), 'warning');
+
+    return;
+  endif;
+
+  if($view->name === $browser_view->view_name) {
+    drupal_add_css(drupal_get_path('module', 'ck_browser') . '/css/ck_browser_view_alter.min.css');
+    drupal_add_js(drupal_get_path('module', 'ck_browser') . '/js/ck_browser_view_alter.min.js');
+  }
+}
